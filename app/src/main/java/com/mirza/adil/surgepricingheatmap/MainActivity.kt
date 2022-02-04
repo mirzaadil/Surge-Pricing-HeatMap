@@ -1,14 +1,17 @@
 package com.mirza.adil.surgepricingheatmap
 
 import android.Manifest
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.*
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -25,7 +28,6 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
-import com.mirza.adil.surgepricingheatmap.model.HeatMapData
 import java.util.*
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks,
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
     private lateinit var mMap: GoogleMap
     private var REQUEST_LOCATION_CODE = 101
     private val mListCurrentPolygons: MutableList<Polygon> = ArrayList()
+    private val mListCurrentPolygonMarkers: MutableList<Marker> = ArrayList()
 
 
     override fun onLocationChanged(location: Location?) {
@@ -223,23 +226,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
         }
     }
 
-    /*
-     * TODO: In this function get polygon center LatLng.
-     * */
 
-    /*
-     * TODO: In this function get polygon center LatLng.
-     * */
-    private fun getPolygonCenterPoint(polygonPointsList: ArrayList<LatLng>): LatLng {
-        val centerLatLng: LatLng
-        val builder = LatLngBounds.Builder()
-        for (i in polygonPointsList.indices) {
-            builder.include(polygonPointsList[i])
-        }
-        val bounds = builder.build()
-        centerLatLng = bounds.center
-        return centerLatLng
-    }
 
     /*
      * TODO: In this function handle heat map API response.
@@ -300,6 +287,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
                 e.printStackTrace()
             }
 
+            val marker : Marker = addText(this, mMap, LatLng(31.528, 74.35), "x 1", 0, 16)!!
+            mListCurrentPolygonMarkers.add(marker)
             //2nd GeoHash
             try {
                 val geoHash: GeoHash = GeoHash.fromGeohashString(
@@ -350,6 +339,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
                 e.printStackTrace()
             }
 
+            val markerSecond : Marker = addText(this, mMap, LatLng(31.528, 74.361), "x 4.6", 0, 16)!!
+            mListCurrentPolygonMarkers.add(markerSecond)
+
         //3rd GeoHash
             try {
                 val geoHash: GeoHash = GeoHash.fromGeohashString(
@@ -399,6 +391,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
             } catch (e: NullPointerException) {
                 e.printStackTrace()
             }
+            val markerThird : Marker = addText(this, mMap, LatLng(31.528, 74.372), "x 3.0", 0, 16)!!
+            mListCurrentPolygonMarkers.add(markerThird)
 
         //4th GeoHash
             try {
@@ -450,10 +444,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
                 e.printStackTrace()
             }
 
+            val maidenform : Marker = addText(this, mMap, LatLng(31.5225, 74.35), "x 4.9", 0, 16)!!
+            mListCurrentPolygonMarkers.add(maidenform)
+
+
             //5th Geohas
             try {
                 val geoHash: GeoHash = GeoHash.fromGeohashString(
-                    java.lang.String.valueOf("ttsgk4")
+                        java.lang.String.valueOf("ttsgk4")
                 )
                 val polygonOptions = PolygonOptions().geodesic(true)
                     .add(
@@ -500,7 +498,53 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
                 e.printStackTrace()
             }
         }
+
+        val markerFifth : Marker = addText(this, mMap, LatLng(31.5225, 74.361), "x 2.7", 0, 16)!!
+        mListCurrentPolygonMarkers.add(markerFifth)
+
+
     }
 
+    /*
+     * TODO: In this function we will add text in polygon.
+     * */
+    private fun addText(
+        context: Context?, map: GoogleMap?,
+        location: LatLng?, text: String?, padding: Int,
+        fontSize: Int
+    ): Marker? {
+        var marker: Marker? = null
+        if (context == null || map == null || location == null || text == null || fontSize <= 0) {
+            return marker
+        }
+        val textView = TextView(context)
+        textView.text = text
+        textView.setTypeface(null, Typeface.BOLD)
+        textView.textSize = fontSize.toFloat()
+        val paintText: Paint = textView.paint
+        val boundsText = Rect()
+        try {
+            paintText.getTextBounds(text, 0, text.length, boundsText)
+        } catch (e: IndexOutOfBoundsException) {
+
+        }
+        paintText.textAlign = Paint.Align.CENTER
+        val conf = Bitmap.Config.ARGB_8888
+        val bmpText = Bitmap.createBitmap(
+            boundsText.width() + 2
+                    * padding, boundsText.height() + 2 * padding, conf
+        )
+        val canvasText = Canvas(bmpText)
+        paintText.color = Color.WHITE
+        canvasText.drawText(
+            text, (canvasText.width / 2).toFloat(), (
+                    canvasText.height - padding - boundsText.bottom).toFloat(), paintText
+        )
+        val markerOptions = MarkerOptions()
+            .position(location)
+            .icon(BitmapDescriptorFactory.fromBitmap(bmpText))
+        marker = map.addMarker(markerOptions)
+        return marker
+    }
 
 }
