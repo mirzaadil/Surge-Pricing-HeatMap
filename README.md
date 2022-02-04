@@ -20,7 +20,7 @@
 # 🎯 Features
 
 * View Google Map
-* Show Custom Heat MAP
+* Show Custom Surge Heat MAP
 * Show Surge Rate Text.
 * Show Dynamic colur base MAP ares.
 
