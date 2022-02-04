@@ -18,7 +18,6 @@ A quick and easy database viewer and manager library for your Room databases.
 <div>
   <img src="https://github.com/mirzaadil/Surge-Pricing-HeatMap/blob/master/screens/map.png" width="280px" />
 </div>
-</br>
 <div>
   <img src="https://github.com/mirzaadil/Surge-Pricing-HeatMap/blob/master/screens/map_surge.png" width="280px" />
 </div>
