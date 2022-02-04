@@ -24,7 +24,7 @@
 * Show Surge Rate Text.
 * Show Dynamic colur base MAP ares.
 
-# ❔Solution: Geohashes
+# Solution: Geohashes
 
 Geohash is a system for encoding a (latitude, longitude) pair into a single Base32 string. In the Geohash system the world is divided into a rectangular grid. Each character of a Geohash string specifies one of 32 subdivisions of the prefix hash. For example the Geohash abcd is one of 32 four-character hashes fully contained within the larger Geohash abc.
 
