@@ -3,4 +3,11 @@
   <color name="colorPrimary">#455A64</color>
   <color name="colorPrimaryDark">#263238</color>
   <color name="colorAccent">#03A9F4</color>
+
+
+  <color name="heatmap_one">#9EFFA889</color>
+  <color name="heatmap_two">#BEFF697F</color>
+  <color name="heatmap_three">#AD673AB7</color>
+  <color name="heatmap_four">#6B03A9F4</color>
+  <color name="heatmap_default">#CBAD0000</color>
 </resources>

@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import ch.hsr.geohash.GeoHash
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.api.GoogleApiClient
 import com.google.android.gms.location.LocationListener
@@ -23,12 +24,12 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
+import com.mirza.adil.surgepricingheatmap.model.HeatMapData
+import java.util.*
 
-class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks,
+    GoogleApiClient.OnConnectionFailedListener, LocationListener {
     private var service: LocationManager? = null
     private var enabled: Boolean? = null
     private var mLocationRequest: LocationRequest? = null
@@ -37,6 +38,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
     private var mCurrLocationMarker: Marker? = null
     private lateinit var mMap: GoogleMap
     private var REQUEST_LOCATION_CODE = 101
+    private val mListCurrentPolygons: MutableList<Polygon> = ArrayList()
+
 
     override fun onLocationChanged(location: Location?) {
         mLastLocation = location
@@ -67,8 +70,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
             startActivity(intent);
         }
         // Check if permission is granted or not
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this)
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            LocationServices.FusedLocationApi.requestLocationUpdates(
+                mGoogleApiClient,
+                mLocationRequest,
+                this
+            )
         }
     }
 
@@ -101,7 +112,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
 
         //Initialize Google Play Services
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
                 //Location Permission already granted
                 buildGoogleApiClient()
                 mMap.isMyLocationEnabled = true
@@ -113,6 +128,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
             buildGoogleApiClient()
             mMap.isMyLocationEnabled = true
         }
+
+        handleHeatMapResponse()
+
     }
 
     @Synchronized
@@ -126,14 +144,22 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
         mGoogleApiClient!!.connect()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             REQUEST_LOCATION_CODE -> {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // permission was granted, yay! Do the location-related task you need to do.
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    if (ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
                         if (mGoogleApiClient == null) {
                             buildGoogleApiClient()
                         }
@@ -149,18 +175,332 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, GoogleApiClient.Co
     }
 
     private fun checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            ) {
                 AlertDialog.Builder(this)
                     .setTitle("Location Permission Needed")
                     .setMessage("This app needs the Location permission, please accept to use location functionality")
                     .setPositiveButton("OK", DialogInterface.OnClickListener { dialog, which ->
-                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION_CODE)
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                            REQUEST_LOCATION_CODE
+                        )
                     })
                     .create()
                     .show()
 
-            } else ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION_CODE)
+            } else ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                REQUEST_LOCATION_CODE
+            )
         }
     }
+
+    /*
+     * TODO: In this function get Color surge pallete
+     * */
+    private fun getColourSurge(value: Double): Int {
+        return if (value < 1.3) {
+            this.resources.getColor(R.color.heatmap_one)
+        } else if (value >= 1.3 && value < 1.5) {
+            this.resources.getColor(R.color.heatmap_two)
+        } else if (value >= 1.5 && value < 1.9) {
+            this.resources.getColor(R.color.heatmap_three)
+        } else if (value >= 1.9 && value < 2.3) {
+            this.resources.getColor(R.color.heatmap_four)
+        } else {
+            this.resources.getColor(R.color.heatmap_default)
+        }
+    }
+
+    /*
+     * TODO: In this function get polygon center LatLng.
+     * */
+
+    /*
+     * TODO: In this function get polygon center LatLng.
+     * */
+    private fun getPolygonCenterPoint(polygonPointsList: ArrayList<LatLng>): LatLng {
+        val centerLatLng: LatLng
+        val builder = LatLngBounds.Builder()
+        for (i in polygonPointsList.indices) {
+            builder.include(polygonPointsList[i])
+        }
+        val bounds = builder.build()
+        centerLatLng = bounds.center
+        return centerLatLng
+    }
+
+    /*
+     * TODO: In this function handle heat map API response.
+     * */
+    private fun handleHeatMapResponse() {
+        if (mMap != null) {
+
+            //1st GeoHash
+
+            var latLngsList: ArrayList<LatLng?>
+            latLngsList = ArrayList()
+            try {
+                val geoHash: GeoHash = GeoHash.fromGeohashString(
+                    java.lang.String.valueOf("ttsg7g")
+                )
+                val polygonOptions = PolygonOptions().geodesic(true)
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                polygonOptions.strokeColor(
+                    getColourSurge(
+                        1.3
+                    )
+                )
+                polygonOptions.strokeWidth(0.0f)
+                polygonOptions.fillColor(
+                    getColourSurge(1.3)
+                )
+                mListCurrentPolygons.add(mMap.addPolygon(polygonOptions))
+                latLngsList.add(
+                    LatLng(
+                        geoHash.getPoint().getLatitude(),
+                        geoHash.getPoint().getLongitude()
+                    )
+                )
+            } catch (e: NullPointerException) {
+                e.printStackTrace()
+            }
+
+            //2nd GeoHash
+            try {
+                val geoHash: GeoHash = GeoHash.fromGeohashString(
+                    java.lang.String.valueOf("ttsgk5")
+                )
+                val polygonOptions = PolygonOptions().geodesic(true)
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                polygonOptions.strokeColor(
+                    getColourSurge(
+                        1.5
+                    )
+                )
+                polygonOptions.strokeWidth(0.0f)
+                polygonOptions.fillColor(
+                    getColourSurge(1.5)
+                )
+                mListCurrentPolygons.add(mMap.addPolygon(polygonOptions))
+                latLngsList.add(
+                    LatLng(
+                        geoHash.getPoint().getLatitude(),
+                        geoHash.getPoint().getLongitude()
+                    )
+                )
+            } catch (e: NullPointerException) {
+                e.printStackTrace()
+            }
+
+        //3rd GeoHash
+            try {
+                val geoHash: GeoHash = GeoHash.fromGeohashString(
+                    java.lang.String.valueOf("ttsgk7")
+                )
+                val polygonOptions = PolygonOptions().geodesic(true)
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                polygonOptions.strokeColor(
+                    getColourSurge(
+                        1.9
+                    )
+                )
+                polygonOptions.strokeWidth(0.0f)
+                polygonOptions.fillColor(
+                    getColourSurge(1.9)
+                )
+                mListCurrentPolygons.add(mMap.addPolygon(polygonOptions))
+                latLngsList.add(
+                    LatLng(
+                        geoHash.getPoint().getLatitude(),
+                        geoHash.getPoint().getLongitude()
+                    )
+                )
+            } catch (e: NullPointerException) {
+                e.printStackTrace()
+            }
+
+        //4th GeoHash
+            try {
+                val geoHash: GeoHash = GeoHash.fromGeohashString(
+                    java.lang.String.valueOf("ttsg7f")
+                )
+                val polygonOptions = PolygonOptions().geodesic(true)
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                polygonOptions.strokeColor(
+                    getColourSurge(
+                        5.0
+                    )
+                )
+                polygonOptions.strokeWidth(0.0f)
+                polygonOptions.fillColor(
+                    getColourSurge(5.0)
+                )
+                mListCurrentPolygons.add(mMap.addPolygon(polygonOptions))
+                latLngsList.add(
+                    LatLng(
+                        geoHash.getPoint().getLatitude(),
+                        geoHash.getPoint().getLongitude()
+                    )
+                )
+            } catch (e: NullPointerException) {
+                e.printStackTrace()
+            }
+
+            //5th Geohas
+            try {
+                val geoHash: GeoHash = GeoHash.fromGeohashString(
+                    java.lang.String.valueOf("ttsgk4")
+                )
+                val polygonOptions = PolygonOptions().geodesic(true)
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMinLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMinLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                    .add(
+                        LatLng(
+                            geoHash.getBoundingBox().getMaxLat(),
+                            geoHash.getBoundingBox().getMaxLon()
+                        )
+                    )
+                polygonOptions.strokeColor(
+                    getColourSurge(
+                        1.9
+                    )
+                )
+                polygonOptions.strokeWidth(0.0f)
+                polygonOptions.fillColor(
+                    getColourSurge(1.9)
+                )
+                mListCurrentPolygons.add(mMap.addPolygon(polygonOptions))
+                latLngsList.add(
+                    LatLng(
+                        geoHash.getPoint().getLatitude(),
+                        geoHash.getPoint().getLongitude()
+                    )
+                )
+            } catch (e: NullPointerException) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+
 }
